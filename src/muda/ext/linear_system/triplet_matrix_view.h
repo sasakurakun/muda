@@ -5,6 +5,24 @@
 
 namespace muda
 {
+/// Integers + raw pointers only (no ViewerBase). For device lambdas on strict CUDA frontends.
+template <typename Ty, int M, int N>
+struct TripletMatrixMutLayout
+{
+    static constexpr bool IsBlockMatrix = (M > 1 || N > 1);
+    using ValueT                        = std::conditional_t<IsBlockMatrix, Eigen::Matrix<Ty, M, N>, Ty>;
+    int  total_rows;
+    int  total_cols;
+    int  triplet_index_offset;
+    int  triplet_count;
+    int  total_triplet_count;
+    int2 submatrix_offset;
+    int2 submatrix_extent;
+    int* row_indices;
+    int* col_indices;
+    ValueT* values;
+};
+
 template <bool IsConst, typename Ty, int M, int N = M>
 class TripletMatrixViewT : public ViewBase<IsConst>
 {
@@ -201,6 +219,23 @@ class TripletMatrixViewT : public ViewBase<IsConst>
                           m_col_indices,
                           m_values};
     }
+
+#if __cplusplus >= 202002L
+    MUDA_GENERIC TripletMatrixMutLayout<Ty, M, N> device_layout_mut() const noexcept
+        requires(!IsConst)
+    {
+        return {m_total_rows,
+                m_total_cols,
+                m_triplet_index_offset,
+                m_triplet_count,
+                m_total_triplet_count,
+                m_submatrix_offset,
+                m_submatrix_extent,
+                m_row_indices,
+                m_col_indices,
+                m_values};
+    }
+#endif
 
     MUDA_GENERIC auto submatrix(int2 offset, int2 extent) const
     {

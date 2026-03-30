@@ -16,11 +16,6 @@ class Equality
 
 namespace muda
 {
-#if CUDA_VERSION < 13000
-#define MUDA_EQUALITY cub::Equality
-#else
-#define MUDA_EQUALITY ::cuda::std::equal_to<>
-#endif
 //ref: https://nvlabs.github.io/cub/structcub_1_1_device_scan.html
 class DeviceScan : public CubWrapper<DeviceScan>
 {
@@ -33,7 +28,7 @@ class DeviceScan : public CubWrapper<DeviceScan>
     DeviceScan& ExclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, int num_items)
     {
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::ExclusiveSum(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream, false));
     }
 
 
@@ -45,7 +40,7 @@ class DeviceScan : public CubWrapper<DeviceScan>
                               int             num_items)
     {
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::ExclusiveScan(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, init_value, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, init_value, num_items, _stream, false));
     }
 
 
@@ -53,17 +48,18 @@ class DeviceScan : public CubWrapper<DeviceScan>
     DeviceScan& InclusiveSum(InputIteratorT d_in, OutputIteratorT d_out, int num_items)
     {
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveSum(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream, false));
     }
 
     template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT>
     DeviceScan& InclusiveScan(InputIteratorT d_in, OutputIteratorT d_out, ScanOpT scan_op, int num_items)
     {
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScan(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, num_items, _stream, false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = MUDA_EQUALITY>
+    #if !defined(UIPC_COREX_CUDA10_COMPAT) && CUDART_VERSION >= 11000
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = cub::Equality>
     DeviceScan& ExclusiveSumByKey(KeysInputIteratorT    d_keys_in,
                                   ValuesInputIteratorT  d_values_in,
                                   ValuesOutputIteratorT d_values_out,
@@ -71,10 +67,10 @@ class DeviceScan : public CubWrapper<DeviceScan>
                                   EqualityOpT equality_op = EqualityOpT())
     {
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::ExclusiveSumByKey(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream));
+            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream, false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename InitValueT, typename EqualityOpT = MUDA_EQUALITY>
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename InitValueT, typename EqualityOpT = cub::Equality>
     DeviceScan& ExclusiveScanByKey(KeysInputIteratorT    d_keys_in,
                                    ValuesInputIteratorT  d_values_in,
                                    ValuesOutputIteratorT d_values_out,
@@ -83,7 +79,6 @@ class DeviceScan : public CubWrapper<DeviceScan>
                                    int                   num_items,
                                    EqualityOpT equality_op = EqualityOpT())
     {
-#if CUDA_VERSION < 13000
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::ExclusiveScanByKey(d_temp_storage,
                                                                   temp_storage_bytes,
                                                                   d_keys_in,
@@ -93,24 +88,11 @@ class DeviceScan : public CubWrapper<DeviceScan>
                                                                   init_value,
                                                                   num_items,
                                                                   equality_op,
-                                                                  _stream ,false
-                                                                  ));
-#else
-        MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::ExclusiveScanByKey(d_temp_storage,
-                                                                  temp_storage_bytes,
-                                                                  d_keys_in,
-                                                                  d_values_in,
-                                                                  d_values_out,
-                                                                  scan_op,
-                                                                  init_value,
-                                                                  num_items,
-                                                                  equality_op,
-                                                                  _stream
-                                                                  ));
-#endif
+                                                                  _stream,
+                                                                  false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = MUDA_EQUALITY>
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = cub::Equality>
     DeviceScan& InclusiveSumByKey(KeysInputIteratorT    d_keys_in,
                                   ValuesInputIteratorT  d_values_in,
                                   ValuesOutputIteratorT d_values_out,
@@ -118,10 +100,10 @@ class DeviceScan : public CubWrapper<DeviceScan>
                                   EqualityOpT equality_op = EqualityOpT())
     {
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveSumByKey(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream));
+            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream, false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename EqualityOpT = MUDA_EQUALITY>
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename EqualityOpT = cub::Equality>
     DeviceScan& InclusiveScanByKey(KeysInputIteratorT    d_keys_in,
                                    ValuesInputIteratorT  d_values_in,
                                    ValuesOutputIteratorT d_values_out,
@@ -129,7 +111,6 @@ class DeviceScan : public CubWrapper<DeviceScan>
                                    int                   num_items,
                                    EqualityOpT equality_op = EqualityOpT())
     {
-#if CUDA_VERSION < 13000
         MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                                                                   temp_storage_bytes,
                                                                   d_keys_in,
@@ -140,18 +121,8 @@ class DeviceScan : public CubWrapper<DeviceScan>
                                                                   equality_op,
                                                                   _stream,
                                                                   false));
-#else
-MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
-                                                                  temp_storage_bytes,
-                                                                  d_keys_in,
-                                                                  d_values_in,
-                                                                  d_values_out,
-                                                                  scan_op,
-                                                                  num_items,
-                                                                  equality_op,
-                                                                  _stream));
-#endif
     }
+    #endif
 
     // Origin:
 
@@ -163,7 +134,7 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                              int             num_items)
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::ExclusiveSum(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream, false));
     }
 
 
@@ -177,7 +148,7 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                               int             num_items)
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::ExclusiveScan(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, init_value, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, init_value, num_items, _stream, false));
     }
 
 
@@ -189,7 +160,7 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                              int             num_items)
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::InclusiveSum(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, num_items, _stream, false));
     }
 
     template <typename InputIteratorT, typename OutputIteratorT, typename ScanOpT>
@@ -201,10 +172,11 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                               int             num_items)
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::InclusiveScan(
-            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, num_items, _stream));
+            d_temp_storage, temp_storage_bytes, d_in, d_out, scan_op, num_items, _stream, false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = MUDA_EQUALITY>
+    #if !defined(UIPC_COREX_CUDA10_COMPAT) && CUDART_VERSION >= 11000
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = cub::Equality>
     DeviceScan& ExclusiveSumByKey(void*                 d_temp_storage,
                                   size_t&               temp_storage_bytes,
                                   KeysInputIteratorT    d_keys_in,
@@ -214,10 +186,10 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                                   EqualityOpT equality_op = EqualityOpT())
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::ExclusiveSumByKey(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream));
+            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream, false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename InitValueT, typename EqualityOpT = MUDA_EQUALITY>
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename InitValueT, typename EqualityOpT = cub::Equality>
     DeviceScan& ExclusiveScanByKey(void*                 d_temp_storage,
                                    size_t&               temp_storage_bytes,
                                    KeysInputIteratorT    d_keys_in,
@@ -228,7 +200,6 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                                    int                   num_items,
                                    EqualityOpT equality_op = EqualityOpT())
     {
-#if CUDA_VERSION < 13000
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(
             cub::DeviceScan::ExclusiveScanByKey(d_temp_storage,
                                                 temp_storage_bytes,
@@ -241,22 +212,9 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                                                 equality_op,
                                                 _stream,
                                                 false));
-#else
-        MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(
-            cub::DeviceScan::ExclusiveScanByKey(d_temp_storage,
-                                                temp_storage_bytes,
-                                                d_keys_in,
-                                                d_values_in,
-                                                d_values_out,
-                                                scan_op,
-                                                init_value,
-                                                num_items,
-                                                equality_op,
-                                                _stream));
-#endif
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = MUDA_EQUALITY>
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename EqualityOpT = cub::Equality>
     DeviceScan& InclusiveSumByKey(void*                 d_temp_storage,
                                   size_t&               temp_storage_bytes,
                                   KeysInputIteratorT    d_keys_in,
@@ -266,10 +224,10 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                                   EqualityOpT equality_op = EqualityOpT())
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::InclusiveSumByKey(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream));
+            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, num_items, equality_op, _stream, false));
     }
 
-    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename EqualityOpT = MUDA_EQUALITY>
+    template <typename KeysInputIteratorT, typename ValuesInputIteratorT, typename ValuesOutputIteratorT, typename ScanOpT, typename EqualityOpT = cub::Equality>
     DeviceScan& InclusiveScanByKey(void*                 d_temp_storage,
                                    size_t&               temp_storage_bytes,
                                    KeysInputIteratorT    d_keys_in,
@@ -280,8 +238,9 @@ MUDA_CUB_WRAPPER_IMPL(cub::DeviceScan::InclusiveScanByKey(d_temp_storage,
                                    EqualityOpT equality_op = EqualityOpT())
     {
         MUDA_CUB_WRAPPER_FOR_COMPUTE_GRAPH_IMPL(cub::DeviceScan::InclusiveScanByKey(
-            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, scan_op, num_items, equality_op, _stream));
+            d_temp_storage, temp_storage_bytes, d_keys_in, d_values_in, d_values_out, scan_op, num_items, equality_op, _stream, false));
     }
+    #endif
 };
 }  // namespace muda
 

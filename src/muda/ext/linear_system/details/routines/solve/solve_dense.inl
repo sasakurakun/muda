@@ -77,12 +77,13 @@ void LinearSystemContext::gesv(DenseMatrixView<T> A, DenseVectorView<T> b)
 
     auto info = std::make_shared<DeviceVar<int>>();
 
+#if CUDART_VERSION >= 11000
     cusolverDnParams_t params;
     cusolverDnCreateParams(&params);
     cusolverDnSetAdvOptions(params, CUSOLVERDN_GETRF, CUSOLVER_ALG_0);
 
-    // constexpr int pivot_on    = 1;
-    size_t d_piv_count = A.row();
+    constexpr int pivot_on    = 1;
+    size_t        d_piv_count = A.row();
 
     checkCudaErrors(cusolverDnXgetrf_bufferSize(cusolver,
                                                 params,
@@ -148,6 +149,14 @@ void LinearSystemContext::gesv(DenseMatrixView<T> A, DenseVectorView<T> b)
 
             checkCudaErrors(cusolverDnDestroyParams(params));
         });
+#else
+    MUDA_ERROR_WITH_LOCATION(
+        "cusolverDn params API is unavailable on this CUDA runtime; "
+        "gesv() is not supported in this backend configuration.");
+    (void)A;
+    (void)b;
+    return;
+#endif
 }
 
 

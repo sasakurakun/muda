@@ -66,7 +66,7 @@ class Dense1DT : public ViewerBase<IsConst>
         return ConstViewer{*this};
     }
 
-    MUDA_GENERIC auto_const_t<T>& operator()(int x) const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>& operator()(int x) const MUDA_NOEXCEPT
     {
         check();
         return m_data[map(x)];
@@ -114,7 +114,7 @@ class Dense1DT : public ViewerBase<IsConst>
     }
 
   protected:
-    MUDA_INLINE MUDA_GENERIC void check() const MUDA_NOEXCEPT
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE void check() const MUDA_NOEXCEPT
     {
         if constexpr(DEBUG_VIEWER)
             if(m_data == nullptr)
@@ -125,7 +125,7 @@ class Dense1DT : public ViewerBase<IsConst>
                                   this->kernel_line());
     }
 
-    MUDA_GENERIC int map(int x) const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE int map(int x) const MUDA_NOEXCEPT
     {
         if constexpr(DEBUG_VIEWER)
             if(!(x >= 0 && x < m_dim))

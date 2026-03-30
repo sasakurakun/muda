@@ -65,7 +65,12 @@ MUDA_INLINE void LaunchCore::record(cudaEvent_t e, int flag)
 {
     MUDA_ASSERT(ComputeGraphBuilder::is_phase_none(),
                 "You need provide at least one ComputeGraphVar for dependency generation");
+#if CUDART_VERSION >= 11000
     checkCudaErrors(cudaEventRecordWithFlags(e, stream(), flag));
+#else
+    (void)flag;
+    checkCudaErrors(cudaEventRecord(e, stream()));
+#endif
 }
 
 MUDA_INLINE void LaunchCore::record(ComputeGraphVar<cudaEvent_t>& e,
@@ -77,7 +82,11 @@ MUDA_INLINE void LaunchCore::record(ComputeGraphVar<cudaEvent_t>& e,
     ComputeGraphBuilder::invoke_phase_actions(
         [&]
         {
+#if CUDART_VERSION >= 11000
             checkCudaErrors(cudaEventRecordWithFlags(event, m_stream, cudaEventRecordDefault));
+#else
+            checkCudaErrors(cudaEventRecord(event, m_stream));
+#endif
         },
         [&] { details::ComputeGraphAccessor().set_event_record_node(event); },
         [&] { details::ComputeGraphAccessor().set_event_record_node(nullptr); });
@@ -193,7 +202,14 @@ MUDA_INLINE void LaunchCore::wait_stream(cudaStream_t stream)
 {
     MUDA_ASSERT(ComputeGraphBuilder::is_phase_none(),
                 "`wait_stream()` a stream is meaningless in ComputeGraph");
+#if defined(UIPC_COREX_CUDA10_COMPAT) && UIPC_COREX_CUDA10_COMPAT
+    if(stream == nullptr)
+        checkCudaErrors(cudaDeviceSynchronize());
+    else
+        checkCudaErrors(cudaStreamSynchronize(stream));
+#else
     checkCudaErrors(cudaStreamSynchronize(stream));
+#endif
 
     if constexpr(muda::RUNTIME_CHECK_ON)
     {

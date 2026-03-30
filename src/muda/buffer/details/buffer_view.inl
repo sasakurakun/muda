@@ -39,14 +39,14 @@ MUDA_GENERIC auto BufferViewT<IsConst, T>::as_const() const MUDA_NOEXCEPT -> Con
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto BufferViewT<IsConst, T>::data() const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto BufferViewT<IsConst, T>::data() const MUDA_NOEXCEPT
     -> auto_const_t<T>*
 {
     return m_data + m_offset;
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto BufferViewT<IsConst, T>::data(size_t i) const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto BufferViewT<IsConst, T>::data(size_t i) const MUDA_NOEXCEPT
     -> auto_const_t<T>*
 {
     i += m_offset;
@@ -54,14 +54,14 @@ MUDA_GENERIC auto BufferViewT<IsConst, T>::data(size_t i) const MUDA_NOEXCEPT
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto BufferViewT<IsConst, T>::origin_data() const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto BufferViewT<IsConst, T>::origin_data() const MUDA_NOEXCEPT
     -> auto_const_t<T>*
 {
     return m_data;
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto BufferViewT<IsConst, T>::operator[](size_t i) const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto BufferViewT<IsConst, T>::operator[](size_t i) const MUDA_NOEXCEPT
     -> auto_const_t<T>&
 {
     return *data(i);

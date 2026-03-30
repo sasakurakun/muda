@@ -7,10 +7,19 @@ namespace muda
 namespace eigen
 {
     template <typename T, int N>
-    MUDA_GENERIC void evd(const Eigen::Matrix<T, N, N>& M,
-                          Eigen::Vector<T, N>&          eigen_values,
-                          Eigen::Matrix<T, N, N>&       eigen_vectors)
+    MUDA_HOST MUDA_DEVICE void evd_jacobi(const Eigen::Matrix<T, N, N>& M,
+                                          Eigen::Vector<T, N>&          eigen_values,
+                                          Eigen::Matrix<T, N, N>&       eigen_vectors);
+
+    template <typename T, int N>
+    MUDA_HOST MUDA_DEVICE void evd(const Eigen::Matrix<T, N, N>& M,
+                                   Eigen::Vector<T, N>&          eigen_values,
+                                   Eigen::Matrix<T, N, N>&       eigen_vectors)
     {
+#if defined(__CUDA_ARCH__)
+        // Corex CUDA device compilation cannot use Eigen's host-only solver path.
+        evd_jacobi(M, eigen_values, eigen_vectors);
+#else
         Eigen::SelfAdjointEigenSolver<Eigen::Matrix<T, N, N>> eigen_solver;
         // NOTE:
         //  On CUDA, if N <= 3, compute() is not supported.
@@ -21,15 +30,16 @@ namespace eigen
             eigen_solver.compute(M);
         eigen_values  = eigen_solver.eigenvalues();
         eigen_vectors = eigen_solver.eigenvectors();
+#endif
     }
 
     namespace details
     {
         template <typename T, int N>
-        MUDA_GENERIC void find_maxValue_diagOff(const Eigen::Matrix<T, N, N>& M,
-                                                int&                          p,
-                                                int&                          q,
-                                                T& max_value)
+        MUDA_HOST MUDA_DEVICE void find_maxValue_diagOff(const Eigen::Matrix<T, N, N>& M,
+                                                         int&                          p,
+                                                         int&                          q,
+                                                         T& max_value)
         {
             max_value = -1;
             for(int i = 0; i < N; ++i)
@@ -47,7 +57,7 @@ namespace eigen
         }
 
         template <typename T, int N>
-        MUDA_GENERIC T calc_sumDiagOff(const Eigen::Matrix<T, N, N>& M)
+        MUDA_HOST MUDA_DEVICE T calc_sumDiagOff(const Eigen::Matrix<T, N, N>& M)
         {
             T sum = 0.0f;
             for(int i = 0; i < N; ++i)
@@ -61,9 +71,9 @@ namespace eigen
         }
 
         template <typename T, int N>
-        MUDA_GENERIC void sort_eigensystem_optimized(Eigen::Vector<T, N>& eigen_values,
-                                                     Eigen::Matrix<T, N, N>& eigen_vectors,
-                                                     bool ascending = false)
+        MUDA_HOST MUDA_DEVICE void sort_eigensystem_optimized(Eigen::Vector<T, N>& eigen_values,
+                                                              Eigen::Matrix<T, N, N>& eigen_vectors,
+                                                              bool ascending = false)
         {
             // create index array
             int indices[N];
@@ -107,10 +117,10 @@ namespace eigen
         }
 
         template <typename T, int N>
-        MUDA_GENERIC void jacobi_rotate(Eigen::Matrix<T, N, N>& M,
-                                        Eigen::Matrix<T, N, N>& E,
-                                        int                     p,
-                                        int                     q)
+        MUDA_HOST MUDA_DEVICE void jacobi_rotate(Eigen::Matrix<T, N, N>& M,
+                                                 Eigen::Matrix<T, N, N>& E,
+                                                 int                     p,
+                                                 int                     q)
         {
             if(std::abs(M(p, q)) < 1e-12)
                 return;
@@ -160,9 +170,9 @@ namespace eigen
      * @brief calculate the Eigen System of a symmetric matrix
      */
     template <typename T, int N>
-    MUDA_GENERIC void evd_jacobi(const Eigen::Matrix<T, N, N>& M,
-                                 Eigen::Vector<T, N>&          eigen_values,
-                                 Eigen::Matrix<T, N, N>&       eigen_vectors)
+    MUDA_HOST MUDA_DEVICE void evd_jacobi(const Eigen::Matrix<T, N, N>& M,
+                                          Eigen::Vector<T, N>&          eigen_values,
+                                          Eigen::Matrix<T, N, N>&       eigen_vectors)
     {
         auto symmetrix = M;
         eigen_vectors.setIdentity();

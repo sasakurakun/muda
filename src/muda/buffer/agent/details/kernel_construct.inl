@@ -3,6 +3,7 @@
 #include <muda/buffer/buffer_view.h>
 #include <muda/buffer/buffer_2d_view.h>
 #include <muda/buffer/buffer_3d_view.h>
+#include <muda/buffer/agent/details/placement_new.h>
 
 namespace muda::details::buffer
 {

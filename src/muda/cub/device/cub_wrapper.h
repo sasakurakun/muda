@@ -1,5 +1,9 @@
 #pragma once
+#if __has_include(<cub/version.cuh>)
 #include <cub/version.cuh>
+#else
+#include <cub/version.h>
+#endif
 #include <muda/launch/launch_base.h>
 #include <muda/buffer.h>
 #include <muda/container.h>

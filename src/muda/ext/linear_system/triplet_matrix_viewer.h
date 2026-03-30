@@ -103,18 +103,20 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
   public:
     MUDA_GENERIC TripletMatrixViewerT() = default;
 
-    MUDA_GENERIC TripletMatrixViewerT(int total_block_rows,
-                                      int total_block_cols,
-                                      int triplet_index_offset,
-                                      int triplet_count,
-                                      int total_triplet_count,
+    // Always __host__ __device__ (not MUDA_GENERIC): host-side compilation of CUDA TUs
+    // must see a device-callable ctor for viewers built inside __device__ lambdas.
+    MUDA_HOST MUDA_DEVICE TripletMatrixViewerT(int total_block_rows,
+                                               int total_block_cols,
+                                               int triplet_index_offset,
+                                               int triplet_count,
+                                               int total_triplet_count,
 
-                                      int2 submatrix_offset,
-                                      int2 submatrix_extent,
+                                               int2 submatrix_offset,
+                                               int2 submatrix_extent,
 
-                                      auto_const_t<int>*    block_row_indices,
-                                      auto_const_t<int>*    block_col_indices,
-                                      auto_const_t<ValueT>* block_values)
+                                               auto_const_t<int>*    block_row_indices,
+                                               auto_const_t<int>*    block_col_indices,
+                                               auto_const_t<ValueT>* block_values)
         : m_total_rows(total_block_rows)
         , m_total_cols(total_block_cols)
         , m_triplet_index_offset(triplet_index_offset)
@@ -168,7 +170,7 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
     }
 
     template <bool OtherIsConst>
-    MUDA_GENERIC TripletMatrixViewerT(const TripletMatrixViewerT<OtherIsConst, T, N>& other)
+    MUDA_HOST MUDA_DEVICE TripletMatrixViewerT(const TripletMatrixViewerT<OtherIsConst, T, N>& other)
         : m_total_rows(other.m_total_rows)
         , m_total_cols(other.m_total_cols)
         , m_triplet_index_offset(other.m_triplet_index_offset)
@@ -182,7 +184,7 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
     {
     }
 
-    MUDA_GENERIC ConstViewer as_const() const
+    MUDA_HOST MUDA_DEVICE ConstViewer as_const() const
     {
         return ConstViewer{m_total_rows,
                            m_total_cols,
@@ -196,31 +198,31 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
                            m_values};
     }
 
-    MUDA_GENERIC auto total_rows() const { return m_total_rows; }
+    MUDA_HOST MUDA_DEVICE auto total_rows() const { return m_total_rows; }
 
-    MUDA_GENERIC auto total_cols() const { return m_total_cols; }
+    MUDA_HOST MUDA_DEVICE auto total_cols() const { return m_total_cols; }
 
-    MUDA_GENERIC auto total_extent() const
+    MUDA_HOST MUDA_DEVICE auto total_extent() const
     {
         return int2{m_total_rows, m_total_cols};
     }
 
-    MUDA_GENERIC auto submatrix_offset() const { return m_submatrix_offset; }
+    MUDA_HOST MUDA_DEVICE auto submatrix_offset() const { return m_submatrix_offset; }
 
-    MUDA_GENERIC auto extent() const { return m_submatrix_extent; }
+    MUDA_HOST MUDA_DEVICE auto extent() const { return m_submatrix_extent; }
 
-    MUDA_GENERIC auto triplet_count() const { return m_triplet_count; }
+    MUDA_HOST MUDA_DEVICE auto triplet_count() const { return m_triplet_count; }
 
-    MUDA_GENERIC auto tripet_index_offset() const
+    MUDA_HOST MUDA_DEVICE auto tripet_index_offset() const
     {
         return m_triplet_index_offset;
     }
-    MUDA_GENERIC auto total_triplet_count() const
+    MUDA_HOST MUDA_DEVICE auto total_triplet_count() const
     {
         return m_total_triplet_count;
     }
 
-    MUDA_GENERIC auto operator()(int i) const
+    MUDA_HOST MUDA_DEVICE auto operator()(int i) const
     {
         if constexpr(IsConst)
         {
@@ -233,7 +235,7 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
     }
 
   protected:
-    MUDA_GENERIC MUDA_INLINE CTriplet at(int i) const noexcept
+    MUDA_HOST MUDA_DEVICE MUDA_INLINE CTriplet at(int i) const noexcept
     {
         auto index    = get_index(i);
         auto global_i = m_row_indices[index];
@@ -244,7 +246,7 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
         return CTriplet{sub_i, sub_j, m_values[index]};
     }
 
-    MUDA_INLINE MUDA_GENERIC int get_index(int i) const noexcept
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE int get_index(int i) const noexcept
     {
 
         MUDA_KERNEL_ASSERT(i >= 0 && i < m_triplet_count,
@@ -259,7 +261,7 @@ class TripletMatrixViewerT : public ViewerBase<IsConst>
         return index;
     }
 
-    MUDA_INLINE MUDA_GENERIC void check_in_submatrix(int i, int j) const noexcept
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE void check_in_submatrix(int i, int j) const noexcept
     {
         MUDA_KERNEL_ASSERT(i >= 0 && i < m_submatrix_extent.x,
                            "TripletMatrixViewer [%s:%s]: row index out of submatrix range,  submatrix_extent.x=%d, your i=%d. %s(%d)",

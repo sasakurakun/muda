@@ -14,6 +14,24 @@ __forceinline__ __device__ T atomic_add(T* address, T val)
     return atomicAdd(address, val);
 }
 
+template <>
+__forceinline__ __device__ double atomic_add<double>(double* address, double val)
+{
+    unsigned long long* address_as_ull = reinterpret_cast<unsigned long long*>(address);
+    unsigned long long  old            = *address_as_ull;
+    unsigned long long  assumed;
+
+    do
+    {
+        assumed = old;
+        old     = atomicCAS(address_as_ull,
+                        assumed,
+                        __double_as_longlong(val + __longlong_as_double(assumed)));
+    } while(assumed != old);
+
+    return __longlong_as_double(old);
+}
+
 template <typename T>
 __forceinline__ __device__ T atomic_sub(T* address, T val)
 {

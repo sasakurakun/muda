@@ -24,7 +24,11 @@ MUDA_INLINE GraphExec& GraphExec::operator=(GraphExec&& other)
 
 MUDA_INLINE void GraphExec::upload(cudaStream_t stream)
 {
+#if CUDART_VERSION >= 11000
     checkCudaErrors(cudaGraphUpload(m_handle, stream));
+#else
+    (void)stream;
+#endif
 }
 
 MUDA_INLINE void GraphExec::launch(cudaStream_t stream)
@@ -45,8 +49,17 @@ MUDA_INLINE void GraphExec::set_memcpy_node_parms(S<MemcpyNode>  node,
                                                   size_t         size_bytes,
                                                   cudaMemcpyKind kind)
 {
+#if CUDART_VERSION >= 11000
     checkCudaErrors(cudaGraphExecMemcpyNodeSetParams1D(
         m_handle, node->m_handle, dst, src, size_bytes, kind));
+#else
+    cudaMemcpy3DParms parms = {};
+    parms.srcPtr            = make_cudaPitchedPtr(const_cast<void*>(src), size_bytes, size_bytes, 1);
+    parms.dstPtr            = make_cudaPitchedPtr(dst, size_bytes, size_bytes, 1);
+    parms.extent            = make_cudaExtent(size_bytes, 1, 1);
+    parms.kind              = kind;
+    checkCudaErrors(cudaGraphExecMemcpyNodeSetParams(m_handle, node->m_handle, &parms));
+#endif
 }
 
 MUDA_INLINE void GraphExec::set_memcpy_node_parms(S<MemcpyNode> node,

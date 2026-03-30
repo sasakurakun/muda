@@ -131,18 +131,18 @@ class Launch : public LaunchBase<Launch>
     MUDA_HOST Launch& apply(const dim3& active_dim, F&& f, Tag<UserTag>);
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST MUDA_NODISCARD auto as_node_parms(F&& f) -> S<NodeParms<F>>;
+    MUDA_NODISCARD MUDA_HOST auto as_node_parms(F&& f) -> S<NodeParms<F>>;
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST MUDA_NODISCARD auto as_node_parms(F&& f, Tag<UserTag>)
+    MUDA_NODISCARD MUDA_HOST auto as_node_parms(F&& f, Tag<UserTag>)
         -> S<NodeParms<F>>;
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST MUDA_NODISCARD auto as_node_parms(const dim3& active_dim, F&& f)
+    MUDA_NODISCARD MUDA_HOST auto as_node_parms(const dim3& active_dim, F&& f)
         -> S<NodeParms<F>>;
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST MUDA_NODISCARD auto as_node_parms(const dim3& active_dim, F&& f, Tag<UserTag>)
+    MUDA_NODISCARD MUDA_HOST auto as_node_parms(const dim3& active_dim, F&& f, Tag<UserTag>)
         -> S<NodeParms<F>>;
 
 

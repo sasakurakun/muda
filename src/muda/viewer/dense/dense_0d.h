@@ -41,7 +41,7 @@ class DenseViewerT : public ViewerBase<IsConst>
     {
     }
 
-    MUDA_GENERIC ThisViewer& operator=(const T& v) MUDA_NOEXCEPT MUDA_REQUIRES(!IsConst)
+    MUDA_HOST MUDA_DEVICE ThisViewer& operator=(const T& v) MUDA_NOEXCEPT MUDA_REQUIRES(!IsConst)
     {
         static_assert(!IsConst, "Cannot assign to a const viewer");
         check();
@@ -49,33 +49,33 @@ class DenseViewerT : public ViewerBase<IsConst>
         return *this;
     }
 
-    MUDA_GENERIC auto as_const() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto as_const() const MUDA_NOEXCEPT
     {
         return ConstViewer{m_data};
     }
 
-    MUDA_GENERIC auto_const_t<T>& operator*() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>& operator*() const MUDA_NOEXCEPT
     {
         check();
         return *m_data;
     }
 
-    MUDA_GENERIC auto_const_t<T>* operator->() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* operator->() const MUDA_NOEXCEPT
     {
         check();
         return m_data;
     }
 
-    MUDA_GENERIC auto_const_t<T>* data() const MUDA_NOEXCEPT { return m_data; }
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* data() const MUDA_NOEXCEPT { return m_data; }
 
-    MUDA_GENERIC operator auto_const_t<T>&() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE operator auto_const_t<T>&() const MUDA_NOEXCEPT
     {
         check();
         return *m_data;
     }
 
   protected:
-    MUDA_INLINE MUDA_GENERIC void check() const MUDA_NOEXCEPT
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE void check() const MUDA_NOEXCEPT
     {
         if constexpr(DEBUG_VIEWER)
         {

@@ -39,9 +39,12 @@ class Dense2DBase : public ViewerBase<IsConst>  // TODO
     using ThisViewer     = Dense2DBase<IsConst, T>;
 
 
-    MUDA_GENERIC Dense2DBase() MUDA_NOEXCEPT : m_data(nullptr) {}
+    MUDA_HOST MUDA_DEVICE Dense2DBase() MUDA_NOEXCEPT : m_data(nullptr) {}
 
-    MUDA_GENERIC Dense2DBase(auto_const_t<T>* p, const int2& offset, const int2& dim, int pitch_bytes) MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE Dense2DBase(auto_const_t<T>* p,
+                                      const int2&      offset,
+                                      const int2&      dim,
+                                      int              pitch_bytes) MUDA_NOEXCEPT
         : m_data(p),
           m_offset(offset),
           m_dim(dim),
@@ -49,12 +52,12 @@ class Dense2DBase : public ViewerBase<IsConst>  // TODO
     {
     }
 
-    MUDA_GENERIC auto as_const() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto as_const() const MUDA_NOEXCEPT
     {
         return ConstViewer{m_data, m_offset, m_dim, m_pitch_bytes};
     }
 
-    MUDA_GENERIC auto_const_t<T>& operator()(int x, int y) MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>& operator()(int x, int y) MUDA_NOEXCEPT
     {
         check();
         check_range(x, y);
@@ -66,12 +69,12 @@ class Dense2DBase : public ViewerBase<IsConst>  // TODO
         return *((auto_const_t<T>*)(height_begin) + y);
     }
 
-    MUDA_GENERIC auto_const_t<T>& operator()(const int2& xy) MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>& operator()(const int2& xy) MUDA_NOEXCEPT
     {
         return operator()(xy.x, xy.y);
     }
 
-    MUDA_GENERIC auto_const_t<T>& flatten(int i)
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>& flatten(int i)
     {
         if constexpr(DEBUG_VIEWER)
         {
@@ -89,43 +92,43 @@ class Dense2DBase : public ViewerBase<IsConst>  // TODO
         return operator()(x, y);
     }
 
-    MUDA_GENERIC auto_const_t<T>* data() MUDA_NOEXCEPT { return m_data; }
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* data() MUDA_NOEXCEPT { return m_data; }
 
 
-    MUDA_GENERIC const T& operator()(const int2& xy) const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE const T& operator()(const int2& xy) const MUDA_NOEXCEPT
     {
         return remove_const(*this)(xy);
     }
 
 
-    MUDA_GENERIC const T& operator()(int x, int y) const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE const T& operator()(int x, int y) const MUDA_NOEXCEPT
     {
         return remove_const(*this)(x, y);
     }
 
-    MUDA_GENERIC const T& flatten(int i) const
+    MUDA_HOST MUDA_DEVICE const T& flatten(int i) const
     {
         return remove_const(*this).flatten(i);
     }
 
-    MUDA_GENERIC const T* data() const MUDA_NOEXCEPT { return m_data; }
+    MUDA_HOST MUDA_DEVICE const T* data() const MUDA_NOEXCEPT { return m_data; }
 
-    MUDA_GENERIC auto total_size() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto total_size() const MUDA_NOEXCEPT
     {
         return m_dim.x * m_dim.y;
     }
 
-    MUDA_GENERIC auto area() const MUDA_NOEXCEPT { return total_size(); }
+    MUDA_HOST MUDA_DEVICE auto area() const MUDA_NOEXCEPT { return total_size(); }
 
-    MUDA_GENERIC auto dim() const MUDA_NOEXCEPT { return m_dim; }
+    MUDA_HOST MUDA_DEVICE auto dim() const MUDA_NOEXCEPT { return m_dim; }
 
-    MUDA_GENERIC auto pitch_bytes() const MUDA_NOEXCEPT
+    MUDA_HOST MUDA_DEVICE auto pitch_bytes() const MUDA_NOEXCEPT
     {
         return m_pitch_bytes;
     }
 
   protected:
-    MUDA_INLINE MUDA_GENERIC void check_range(int x, int y) const MUDA_NOEXCEPT
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE void check_range(int x, int y) const MUDA_NOEXCEPT
     {
         if constexpr(DEBUG_VIEWER)
             if(!(x >= 0 && x < m_dim.x && y >= 0 && y < m_dim.y))
@@ -142,7 +145,7 @@ class Dense2DBase : public ViewerBase<IsConst>  // TODO
             }
     }
 
-    MUDA_INLINE MUDA_GENERIC void check() const MUDA_NOEXCEPT
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE void check() const MUDA_NOEXCEPT
     {
         if constexpr(DEBUG_VIEWER)
         {
@@ -178,25 +181,25 @@ struct read_write_view<CDense2D<T>>
 
 // make functions
 template <typename T>
-MUDA_INLINE MUDA_GENERIC auto make_cdense_2d(const T* data, const int2& dim) MUDA_NOEXCEPT
+MUDA_INLINE MUDA_HOST MUDA_DEVICE auto make_cdense_2d(const T* data, const int2& dim) MUDA_NOEXCEPT
 {
     return CDense2D<T>{data, make_int2(0, 0), dim, static_cast<int>(dim.y * sizeof(T))};
 }
 
 template <typename T>
-MUDA_INLINE MUDA_GENERIC auto make_dense_2d(T* data, const int2& dim) MUDA_NOEXCEPT
+MUDA_INLINE MUDA_HOST MUDA_DEVICE auto make_dense_2d(T* data, const int2& dim) MUDA_NOEXCEPT
 {
     return Dense2D<T>{data, make_int2(0, 0), dim, static_cast<int>(dim.y * sizeof(T))};
 }
 
 template <typename T>
-MUDA_INLINE MUDA_GENERIC auto make_cdense_2d(const T* data, int dimx, int dimy) MUDA_NOEXCEPT
+MUDA_INLINE MUDA_HOST MUDA_DEVICE auto make_cdense_2d(const T* data, int dimx, int dimy) MUDA_NOEXCEPT
 {
     return make_cdense_2d(data, make_int2(dimx, dimy));
 }
 
 template <typename T>
-MUDA_INLINE MUDA_GENERIC auto make_dense_2d(T* data, int dimx, int dimy) MUDA_NOEXCEPT
+MUDA_INLINE MUDA_HOST MUDA_DEVICE auto make_dense_2d(T* data, int dimx, int dimy) MUDA_NOEXCEPT
 {
     return make_dense_2d(data, make_int2(dimx, dimy));
 }

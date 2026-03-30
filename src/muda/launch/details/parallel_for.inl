@@ -16,6 +16,14 @@ namespace details
     template <typename F, typename UserTag>
     MUDA_GLOBAL void parallel_for_kernel(ParallelForCallable<F> f)
     {
+#if defined(UIPC_COREX_CUDA10_COMPAT) && UIPC_COREX_CUDA10_COMPAT
+        // Corex clang: if constexpr + std::is_invocable on device lambdas can miscompile
+        // (e.g. invalid addrspacecast). Force the common (int) index path.
+        auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+        auto i   = tid;
+        if(i < f.count)
+            f.callable(i);
+#else
         if constexpr(std::is_invocable_v<F, int>)
         {
             auto tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -38,13 +46,27 @@ namespace details
         }
         else
         {
-            static_assert(always_false_v<F>, "f must be void (int) or void (ParallelForDetails)");
+            // Some toolchains cannot evaluate device-callable lambdas in std::is_invocable.
+            auto tid = blockIdx.x * blockDim.x + threadIdx.x;
+            auto i   = tid;
+            if(i < f.count)
+            {
+                f.callable(i);
+            }
         }
+#endif
     }
 
     template <typename F, typename UserTag>
     MUDA_GLOBAL void grid_stride_loop_kernel(ParallelForCallable<F> f)
     {
+#if defined(UIPC_COREX_CUDA10_COMPAT) && UIPC_COREX_CUDA10_COMPAT
+        auto tid       = blockIdx.x * blockDim.x + threadIdx.x;
+        auto grid_size = gridDim.x * blockDim.x;
+        auto i         = tid;
+        for(; i < f.count; i += grid_size)
+            f.callable(i);
+#else
         if constexpr(std::is_invocable_v<F, int>)
         {
             auto tid       = blockIdx.x * blockDim.x + threadIdx.x;
@@ -77,14 +99,21 @@ namespace details
         }
         else
         {
-            static_assert(always_false_v<F>, "f must be void (int) or void (ParallelForDetails)");
+            // Some toolchains cannot evaluate device-callable lambdas in std::is_invocable.
+            auto tid       = blockIdx.x * blockDim.x + threadIdx.x;
+            auto grid_size = gridDim.x * blockDim.x;
+            auto i         = tid;
+            for(; i < f.count; i += grid_size)
+                f.callable(i);
         }
+#endif
     }
 }  // namespace details
 
 
+template <bool kGridStrideMode>
 template <typename F, typename UserTag>
-MUDA_HOST ParallelFor& ParallelFor::apply(int count, F&& f)
+MUDA_HOST ParallelFor<kGridStrideMode>& ParallelFor<kGridStrideMode>::apply(int count, F&& f)
 {
     if constexpr(COMPUTE_GRAPH_ON)
     {
@@ -111,80 +140,109 @@ MUDA_HOST ParallelFor& ParallelFor::apply(int count, F&& f)
     {
         invoke<F, UserTag>(count, std::forward<F>(f));
     }
-    pop_kernel_label();
+    this->pop_kernel_label();
     return *this;
 }
 
+template <bool kGridStrideMode>
 template <typename F, typename UserTag>
-MUDA_HOST ParallelFor& ParallelFor::apply(int count, F&& f, Tag<UserTag>)
+MUDA_HOST ParallelFor<kGridStrideMode>& ParallelFor<kGridStrideMode>::apply(int count, F&& f, Tag<UserTag>)
 {
     return apply<F, UserTag>(count, std::forward<F>(f));
 }
 
+template <bool kGridStrideMode>
 template <typename F, typename UserTag>
-MUDA_HOST MUDA_NODISCARD auto ParallelFor::as_node_parms(int count, F&& f)
-    -> S<NodeParms<F>>
+MUDA_NODISCARD MUDA_HOST auto ParallelFor<kGridStrideMode>::make_as_node_parms_dynamic(int count, F&& f)
+    -> std::shared_ptr<NodeParms<F>>
 {
     using CallableType = raw_type_t<F>;
-
-    // check_input(count);
-
-    auto parms = std::make_shared<NodeParms<F>>(std::forward<F>(f), count);
-    if(m_grid_dim <= 0)  // dynamic grid dim
-    {
-        m_block_dim   = calculate_block_dim<F, UserTag>(count);
-        auto n_blocks = calculate_grid_dim(count, m_block_dim);
-        parms->func((void*)details::parallel_for_kernel<CallableType, UserTag>);
-        parms->grid_dim(n_blocks);
-    }
-    else  // grid-stride loop
-    {
-        parms->func((void*)details::grid_stride_loop_kernel<CallableType, UserTag>);
-        parms->grid_dim(m_grid_dim);
-    }
-
+    auto parms         = std::make_shared<NodeParms<F>>(std::forward<F>(f), count);
+    m_block_dim        = calculate_block_dim<F, UserTag>(count);
+    auto n_blocks      = calculate_grid_dim(count, m_block_dim);
+    parms->func((void*)details::parallel_for_kernel<CallableType, UserTag>);
+    parms->grid_dim(n_blocks);
     parms->block_dim(m_block_dim);
     parms->shared_mem_bytes(static_cast<uint32_t>(m_shared_mem_size));
     parms->parse([](details::ParallelForCallable<CallableType>& p) -> std::vector<void*>
                  { return {&p}; });
-
     return parms;
 }
 
+template <bool kGridStrideMode>
 template <typename F, typename UserTag>
-MUDA_HOST MUDA_NODISCARD auto ParallelFor::as_node_parms(int count, F&& f, Tag<UserTag>)
-    -> S<NodeParms<F>>
+MUDA_NODISCARD MUDA_HOST auto ParallelFor<kGridStrideMode>::make_as_node_parms_grid_stride(int count, F&& f)
+    -> std::shared_ptr<NodeParms<F>>
+{
+    using CallableType = raw_type_t<F>;
+    auto parms = std::make_shared<NodeParms<F>>(std::forward<F>(f), count);
+    parms->func((void*)details::grid_stride_loop_kernel<CallableType, UserTag>);
+    parms->grid_dim(m_grid_dim);
+    parms->block_dim(m_block_dim);
+    parms->shared_mem_bytes(static_cast<uint32_t>(m_shared_mem_size));
+    parms->parse([](details::ParallelForCallable<CallableType>& p) -> std::vector<void*>
+                 { return {&p}; });
+    return parms;
+}
+
+template <bool kGridStrideMode>
+template <typename F, typename UserTag>
+MUDA_HOST void ParallelFor<kGridStrideMode>::invoke_parallel_for_dynamic(int count, F&& f)
+{
+    using CallableType = raw_type_t<F>;
+    m_block_dim        = calculate_block_dim<F, UserTag>(count);
+    auto n_blocks      = calculate_grid_dim(count, m_block_dim);
+    auto callable      = details::ParallelForCallable<CallableType>{f, count};
+    details::parallel_for_kernel<CallableType, UserTag>
+        <<<n_blocks, m_block_dim, m_shared_mem_size, this->m_stream>>>(callable);
+}
+
+template <bool kGridStrideMode>
+template <typename F, typename UserTag>
+MUDA_HOST void ParallelFor<kGridStrideMode>::invoke_parallel_for_grid_stride(int count, F&& f)
+{
+    using CallableType = raw_type_t<F>;
+    auto callable = details::ParallelForCallable<CallableType>{f, count};
+    details::grid_stride_loop_kernel<CallableType, UserTag>
+        <<<m_grid_dim, m_block_dim, m_shared_mem_size, this->m_stream>>>(callable);
+}
+
+template <bool kGridStrideMode>
+template <typename F, typename UserTag>
+MUDA_NODISCARD MUDA_HOST auto ParallelFor<kGridStrideMode>::as_node_parms(int count, F&& f)
+    -> std::shared_ptr<NodeParms<F>>
+{
+    if constexpr(kGridStrideMode)
+        return make_as_node_parms_grid_stride<F, UserTag>(count, std::forward<F>(f));
+    else
+        return make_as_node_parms_dynamic<F, UserTag>(count, std::forward<F>(f));
+}
+
+template <bool kGridStrideMode>
+template <typename F, typename UserTag>
+MUDA_NODISCARD MUDA_HOST auto ParallelFor<kGridStrideMode>::as_node_parms(int count, F&& f, Tag<UserTag>)
+    -> std::shared_ptr<NodeParms<F>>
 {
     return as_node_parms<F, UserTag>(count, std::forward<F>(f));
 }
 
+template <bool kGridStrideMode>
 template <typename F, typename UserTag>
-MUDA_HOST void ParallelFor::invoke(int count, F&& f)
+MUDA_HOST void ParallelFor<kGridStrideMode>::invoke(int count, F&& f)
 {
-    using CallableType = raw_type_t<F>;
     // check_input(count);
     if(count > 0)
     {
-        if(m_grid_dim <= 0)  // parallel for
-        {
-            // calculate the blocks we need
-            m_block_dim   = calculate_block_dim<F, UserTag>(count);
-            auto n_blocks = calculate_grid_dim(count, m_block_dim);
-            auto callable = details::ParallelForCallable<CallableType>{f, count};
-            details::parallel_for_kernel<CallableType, UserTag>
-                <<<n_blocks, m_block_dim, m_shared_mem_size, m_stream>>>(callable);
-        }
-        else  // grid stride loop
-        {
-            auto callable = details::ParallelForCallable<CallableType>{f, count};
-            details::grid_stride_loop_kernel<CallableType, UserTag>
-                <<<m_grid_dim, m_block_dim, m_shared_mem_size, m_stream>>>(callable);
-        }
+        if constexpr(kGridStrideMode)
+            invoke_parallel_for_grid_stride<F, UserTag>(count, std::forward<F>(f));
+        else
+            invoke_parallel_for_dynamic<F, UserTag>(count, std::forward<F>(f));
     }
 }
 
+template <bool kGridStrideMode>
 template <typename F, typename UserTag>
-MUDA_INLINE MUDA_GENERIC int ParallelFor::calculate_block_dim(int count) const MUDA_NOEXCEPT
+MUDA_INLINE MUDA_GENERIC int ParallelFor<kGridStrideMode>::calculate_block_dim(int count) const MUDA_NOEXCEPT
 {
     using CallableType  = raw_type_t<F>;
     int best_block_size = -1;
@@ -198,11 +256,22 @@ MUDA_INLINE MUDA_GENERIC int ParallelFor::calculate_block_dim(int count) const M
 #endif
         if(cached_block_size <= 0)
         {
-            checkCudaErrors(cudaOccupancyMaxPotentialBlockSize(
-                &min_grid_size,
-                &cached_block_size,
-                details::parallel_for_kernel<CallableType, UserTag>,
-                m_shared_mem_size));
+            if constexpr(kGridStrideMode)
+            {
+                checkCudaErrors(cudaOccupancyMaxPotentialBlockSize(
+                    &min_grid_size,
+                    &cached_block_size,
+                    details::grid_stride_loop_kernel<CallableType, UserTag>,
+                    m_shared_mem_size));
+            }
+            else
+            {
+                checkCudaErrors(cudaOccupancyMaxPotentialBlockSize(
+                    &min_grid_size,
+                    &cached_block_size,
+                    details::parallel_for_kernel<CallableType, UserTag>,
+                    m_shared_mem_size));
+            }
         }
         best_block_size = cached_block_size;
     }
@@ -214,19 +283,22 @@ MUDA_INLINE MUDA_GENERIC int ParallelFor::calculate_block_dim(int count) const M
     return best_block_size;
 }
 
-MUDA_INLINE MUDA_GENERIC int ParallelFor::calculate_grid_dim(int count) const MUDA_NOEXCEPT
+template <bool kGridStrideMode>
+MUDA_INLINE MUDA_GENERIC int ParallelFor<kGridStrideMode>::calculate_grid_dim(int count) const MUDA_NOEXCEPT
 {
     return calculate_grid_dim(count, m_grid_dim);
 }
 
-MUDA_INLINE MUDA_GENERIC int ParallelFor::calculate_grid_dim(int count, int block_dim) MUDA_NOEXCEPT
+template <bool kGridStrideMode>
+MUDA_INLINE MUDA_GENERIC int ParallelFor<kGridStrideMode>::calculate_grid_dim(int count, int block_dim) MUDA_NOEXCEPT
 {
     auto min_threads = count;
     auto min_blocks  = (min_threads + block_dim - 1) / block_dim;
     return min_blocks;
 }
 
-MUDA_INLINE MUDA_GENERIC void ParallelFor::check_input(int count) const MUDA_NOEXCEPT
+template <bool kGridStrideMode>
+MUDA_INLINE MUDA_GENERIC void ParallelFor<kGridStrideMode>::check_input(int count) const MUDA_NOEXCEPT
 {
     MUDA_KERNEL_ASSERT(count >= 0, "count must be >= 0");
     MUDA_KERNEL_ASSERT(m_block_dim > 0, "blockDim must be > 0");
@@ -246,7 +318,7 @@ MUDA_INLINE MUDA_DEVICE int ParallelForDetails::active_num_in_block() const MUDA
     }
     else
     {
-        MUDA_KERNEL_ERROR("invalid paralell for type");
+        // Fallback for compilers that reject host-only logging helpers in device context.
         return 0;
     }
 }
@@ -263,7 +335,7 @@ MUDA_INLINE MUDA_DEVICE bool ParallelForDetails::is_final_block() const MUDA_NOE
     }
     else
     {
-        MUDA_KERNEL_ERROR("invalid paralell for type");
+        // Fallback for compilers that reject host-only logging helpers in device context.
         return false;
     }
 }

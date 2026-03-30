@@ -10,7 +10,8 @@
 #include <cooperative_groups.h>
 
 #include <cuda_profiler_api.h>
-
+#include <nvtx3/nvToolsExt.h>
+#include <nvtx3/nvToolsExtCuda.h>
 #include <muda/type_traits/type_modifier.h>
 #include <muda/tools/launch_info_cache.h>
 
@@ -18,6 +19,14 @@
 #include <muda/muda_def.h>
 #include <muda/launch/event.h>
 #include <muda/launch/kernel_tag.h>
+
+#ifndef cudaEventRecordDefault
+#define cudaEventRecordDefault 0
+#endif
+
+#ifndef cudaEventWaitDefault
+#define cudaEventWaitDefault 0
+#endif
 
 namespace muda
 {
@@ -46,10 +55,12 @@ class LaunchCore
 
     ::cudaStream_t m_stream;
     MUDA_HOST void pop_kernel_label();
+    MUDA_HOST void pop_kernel_name() { pop_kernel_label(); }
 
   public:
-    static void kernel_name(std::string_view name);
-    static void file_line(std::string_view file, int line);
+    static void             kernel_name(std::string_view name);
+    static std::string_view kernel_name();
+    static void             file_line(std::string_view file, int line);
 
     MUDA_GENERIC LaunchCore(::cudaStream_t stream) MUDA_NOEXCEPT;
 
@@ -58,14 +69,14 @@ class LaunchCore
     void push_range(const std::string& name);
     void pop_range();
 
-    void record(cudaEvent_t e, int flag = cudaEventRecordDefault);
+    void record(cudaEvent_t e, int flag = 0);
     void record(ComputeGraphVar<cudaEvent_t>&            e,
                 const std::vector<ComputeGraphVarBase*>& vars);
     template <typename... ViewT>
     void record(ComputeGraphVar<cudaEvent_t>& e, ComputeGraphVar<ViewT>&... vars);
-    void when(cudaEvent_t e, int flag = cudaEventWaitDefault);
+    void when(cudaEvent_t e, int flag = 0);
     // let the host wait for the event
-    void wait(cudaEvent_t e, int flag = cudaEventWaitDefault);
+    void wait(cudaEvent_t e, int flag = 0);
     void wait(const ComputeGraphVar<cudaEvent_t>&      e,
               const std::vector<ComputeGraphVarBase*>& vars);
     template <typename... ViewT>
@@ -101,10 +112,11 @@ class LaunchBase : public LaunchCore
     T& push_range(const std::string& name);
     T& pop_range();
 
+
     // create a name for the following kernel launch
     // viewers will record this name for the sake of better recognization when debugging
-    T& kernel_name(std::string_view name);
-    T& file_line(std::string_view file, int line);
+    T&               kernel_name(std::string_view name);
+    std::string_view kernel_name() const { return Base::kernel_name(); }
 
     // record an event on this point with current stream, you could use .when() to
     // capture this event for synchronization
@@ -112,7 +124,7 @@ class LaunchBase : public LaunchCore
     //  cudaEventRecordDefault : Default event creation flag.
     //  cudaEventRecordExternal : Event is captured in the graph as an external
     //  event node when performing stream capture.
-    T& record(cudaEvent_t e, int flag = cudaEventRecordDefault);
+    T& record(cudaEvent_t e, int flag = 0);
 
     T& record(ComputeGraphVar<cudaEvent_t>&            e,
               const std::vector<ComputeGraphVarBase*>& vars);
@@ -131,9 +143,9 @@ class LaunchBase : public LaunchCore
     //  cudaEventRecordDefault : Default event creation flag.
     //  cudaEventRecordExternal : Event is captured in the graph as an external
     //  event node when performing stream capture.
-    T& when(cudaEvent_t e, int flag = cudaEventWaitDefault);
+    T& when(cudaEvent_t e, int flag = 0);
     // let the host wait for the event
-    T& wait(cudaEvent_t e, int flag = cudaEventWaitDefault);
+    T& wait(cudaEvent_t e, int flag = 0);
     T& wait(const ComputeGraphVar<cudaEvent_t>&      e,
             const std::vector<ComputeGraphVarBase*>& vars);
     template <typename... ViewT>
@@ -147,6 +159,8 @@ class LaunchBase : public LaunchCore
     // this point are done.
     T& callback(const std::function<void(::cudaStream_t, ::cudaError)>& callback);
 
+    T& file_line(std::string_view file, int line);
+
     template <typename Next>
     Next next(Next n);
     template <typename Next, typename... Args>
@@ -156,6 +170,7 @@ class LaunchBase : public LaunchCore
 
   protected:
     T& pop_kernel_label();
+    T& pop_kernel_name() { return pop_kernel_label(); }
 
   private:
     T& derived() MUDA_NOEXCEPT { return *(T*)(this); }

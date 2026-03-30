@@ -30,7 +30,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
 
     struct CDoublet
     {
-        MUDA_GENERIC CDoublet(int index, const ValueT& segment)
+        MUDA_HOST MUDA_DEVICE CDoublet(int index, const ValueT& segment)
             : index(index)
             , value(segment)
         {
@@ -46,16 +46,16 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
         int                         m_index = 0;
 
       private:
-        MUDA_GENERIC Proxy(const DoubletVectorViewerT& viewer, int index)
+        MUDA_HOST MUDA_DEVICE Proxy(const DoubletVectorViewerT& viewer, int index)
             : m_viewer(viewer)
             , m_index(index)
         {
         }
 
       public:
-        MUDA_GENERIC auto read() && { return m_viewer.at(m_index); }
+        MUDA_HOST MUDA_DEVICE auto read() && { return m_viewer.at(m_index); }
 
-        MUDA_GENERIC void write(int segment_i, const ValueT& value) &&
+        MUDA_HOST MUDA_DEVICE void write(int segment_i, const ValueT& value) &&
         {
             auto index = m_viewer.get_index(m_index);
 
@@ -67,7 +67,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
             m_viewer.m_segment_values[index]  = value;
         }
 
-        MUDA_GENERIC ~Proxy() = default;
+        MUDA_HOST MUDA_DEVICE ~Proxy() = default;
     };
 
   protected:
@@ -88,15 +88,15 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
     auto_const_t<ValueT>* m_segment_values;
 
   public:
-    MUDA_GENERIC DoubletVectorViewerT() = default;
-    MUDA_GENERIC DoubletVectorViewerT(int                total_segment_count,
-                                      int                doublet_index_offset,
-                                      int                doublet_count,
-                                      int                total_doublet_count,
-                                      int                subvector_offset,
-                                      int                subvector_extent,
-                                      auto_const_t<int>* segment_indices,
-                                      auto_const_t<ValueT>* segment_values)
+    MUDA_HOST MUDA_DEVICE DoubletVectorViewerT() = default;
+    MUDA_HOST MUDA_DEVICE DoubletVectorViewerT(int                  total_segment_count,
+                                               int                  doublet_index_offset,
+                                               int                  doublet_count,
+                                               int                  total_doublet_count,
+                                               int                  subvector_offset,
+                                               int                  subvector_extent,
+                                               auto_const_t<int>*   segment_indices,
+                                               auto_const_t<ValueT>* segment_values)
         : m_total_segment_count(total_segment_count)
         , m_doublet_index_offset(doublet_index_offset)
         , m_doublet_count(doublet_count)
@@ -126,7 +126,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
     }
 
     template <bool OtherIsConst>
-    MUDA_GENERIC DoubletVectorViewerT(const DoubletVectorViewerT<OtherIsConst, T, N>& other) noexcept
+    MUDA_HOST MUDA_DEVICE DoubletVectorViewerT(const DoubletVectorViewerT<OtherIsConst, T, N>& other) noexcept
         MUDA_REQUIRES(IsConst)
         : m_total_segment_count(other.m_total_segment_count)
         , m_doublet_index_offset(other.m_doublet_index_offset)
@@ -140,7 +140,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
         static_assert(IsConst);
     }
 
-    MUDA_GENERIC ConstViewer as_const() const noexcept
+    MUDA_HOST MUDA_DEVICE ConstViewer as_const() const noexcept
     {
         return ConstViewer{m_total_segment_count,
                            m_doublet_index_offset,
@@ -152,14 +152,14 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
                            m_segment_values};
     }
 
-    MUDA_GENERIC int doublet_count() const noexcept { return m_doublet_count; }
+    MUDA_HOST MUDA_DEVICE int doublet_count() const noexcept { return m_doublet_count; }
 
-    MUDA_GENERIC int total_doublet_count() const noexcept
+    MUDA_HOST MUDA_DEVICE int total_doublet_count() const noexcept
     {
         return m_total_doublet_count;
     }
 
-    MUDA_GENERIC auto operator()(int i) const
+    MUDA_HOST MUDA_DEVICE auto operator()(int i) const
     {
         if constexpr(IsConst)
         {
@@ -172,7 +172,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
     }
 
   protected:
-    MUDA_INLINE MUDA_GENERIC CDoublet at(int i) const
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE CDoublet at(int i) const
     {
         auto index    = get_index(i);
         auto global_i = m_segment_indices[index];
@@ -183,7 +183,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
     }
 
 
-    MUDA_INLINE MUDA_GENERIC int get_index(int i) const noexcept
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE int get_index(int i) const noexcept
     {
         MUDA_KERNEL_ASSERT(i >= 0 && i < m_doublet_count,
                            "DoubletVectorViewer [%s:%s]: index out of range, m_doublet_count=%d, your index=%d. %s(%d)",
@@ -197,7 +197,7 @@ class DoubletVectorViewerT : public ViewerBase<IsConst>
         return index;
     }
 
-    MUDA_INLINE MUDA_GENERIC void check_in_subvector(int i) const noexcept
+    MUDA_INLINE MUDA_HOST MUDA_DEVICE void check_in_subvector(int i) const noexcept
     {
         MUDA_KERNEL_ASSERT(i >= 0 && i < m_subvector_extent,
                            "DoubletVectorViewer [%s:%s]: index out of range, m_subvector_extent=%d, your index=%d. %s(%d)",

@@ -56,7 +56,7 @@ void thrust_test()
         [&]
         {
             on(nullptr)  //
-                .next<ParallelFor>()
+                .next<ParallelFor<>>()
                 .kernel_name("muda")
                 .apply(N,
                        [buffer = make_dense_1d(

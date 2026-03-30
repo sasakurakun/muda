@@ -4,6 +4,21 @@
 
 namespace muda
 {
+/// Integers + raw pointers only (no ViewerBase). For device lambdas on strict CUDA frontends.
+template <typename T, int N>
+struct DoubletVectorMutLayout
+{
+    using ValueT = std::conditional_t<(N == 1), T, Eigen::Matrix<T, N, 1>>;
+    int       total_segment_count;
+    int       doublet_index_offset;
+    int       doublet_count;
+    int       total_doublet_count;
+    int       subvector_offset;
+    int       subvector_extent;
+    int*      segment_indices;
+    ValueT*   segment_values;
+};
+
 template <bool IsConst, typename T, int N>
 class DoubletVectorViewT : public ViewBase<IsConst>
 {
@@ -215,6 +230,21 @@ class DoubletVectorViewT : public ViewBase<IsConst>
                                             static_cast<size_t>(m_doublet_index_offset),
                                             static_cast<size_t>(m_doublet_count)};
     }
+
+#if __cplusplus >= 202002L
+    MUDA_GENERIC DoubletVectorMutLayout<T, N> device_layout_mut() const noexcept
+        requires(!IsConst)
+    {
+        return {m_total_segment_count,
+                m_doublet_index_offset,
+                m_doublet_count,
+                m_total_doublet_count,
+                m_subvector_offset,
+                m_subvector_extent,
+                m_indices,
+                m_values};
+    }
+#endif
 };
 
 template <typename T, int N>

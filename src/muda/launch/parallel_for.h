@@ -2,7 +2,7 @@
  * \file   parallel_for.h
  * \brief  A frequently used parallel for loop, **DynamicBlockDim** and **GridStrideLoop**
  * strategy are provided, and can be switched seamlessly to each other.
- * 
+ *
  * \author MuGdxy
  * \date   January 2024
  *********************************************************************/
@@ -11,6 +11,7 @@
 #pragma once
 #include <muda/launch/launch_base.h>
 #include <muda/launch/kernel_tag.h>
+#include <memory>
 #include <stdexcept>
 #include <exception>
 
@@ -108,11 +109,17 @@ using details::parallel_for_kernel;
 
 /**
  * \class ParallelFor
- * 
+ *
  * \brief a frequently used parallel for loop, **DynamicBlockDim** and **GridStrideLoop**
  * strategy are provided, and can be switched seamlessly to each other.
+ *
+ * \tparam kGridStrideMode When true, this object only ever launches the grid-stride kernel;
+ *         when false, only the dynamic-grid kernel. Splitting the mode at compile time avoids
+ *         instantiating both device kernels for the same lambda type (some CUDA toolchains
+ *         miscompile that, e.g. Corex clang / invalid addrspacecast in llc).
  */
-class ParallelFor : public LaunchBase<ParallelFor>
+template <bool kGridStrideMode = false>
+class ParallelFor : public LaunchBase<ParallelFor<kGridStrideMode>>
 {
     int    m_grid_dim;
     int    m_block_dim;
@@ -123,24 +130,12 @@ class ParallelFor : public LaunchBase<ParallelFor>
     using NodeParms = KernelNodeParms<details::ParallelForCallable<raw_type_t<F>>>;
 
     /**
-     * \brief Calculate grid dim automatically to cover the range, 
+     * \brief Calculate grid dim automatically to cover the range,
      * automatially choose the block size to achieve max occupancy.
-     * 
-     * \code 
-     *  DeviceBuffer<int> buffer(256);
-     *  ParallelFor()
-     *      .kernel_name("set_buffer") // optional
-     *      .apply(buffer.size(), 
-     *          [
-     *              buffer = buffer.viewer().name("buffer") // name is optional
-     *          ] __device__(int i) mutable 
-     *          {
-     *              buffer(i) = 1;
-     *          });
-     * \endcode
      */
     MUDA_HOST ParallelFor(size_t shared_mem_size = 0, cudaStream_t stream = nullptr) MUDA_NOEXCEPT
-        : LaunchBase(stream),
+        requires(!kGridStrideMode)
+        : LaunchBase<ParallelFor<kGridStrideMode>>(stream),
           m_grid_dim(0),
           m_block_dim(-1),
           m_shared_mem_size(shared_mem_size)
@@ -148,53 +143,26 @@ class ParallelFor : public LaunchBase<ParallelFor>
     }
 
     /**
-     * \brief Calculate grid dim automatically to cover the range, but you need mannally set the block size.
-     * 
-     * \code 
-     *  DeviceBuffer<int> buffer(256);
-     *  ParallelFor(64)
-     *      .kernel_name("set_buffer") // optional
-     *      .apply(buffer.size(), 
-     *          [
-     *              buffer = buffer.viewer().name("buffer") // name is optional
-     *          ] __device__(int i) mutable 
-     *          {
-     *              buffer(i) = 1;
-     *          });
-     * \endcode
+     * \brief Calculate grid dim automatically to cover the range, but you need mannually set the block size.
      */
     MUDA_HOST ParallelFor(int blockDim, size_t shared_mem_size = 0, cudaStream_t stream = nullptr) MUDA_NOEXCEPT
-        : LaunchBase(stream),
+        requires(!kGridStrideMode)
+        : LaunchBase<ParallelFor<kGridStrideMode>>(stream),
           m_grid_dim(0),
           m_block_dim(blockDim),
           m_shared_mem_size(shared_mem_size)
     {
-        // std::cout << "[DEBUG]" << "blockDim: " << blockDim << std::endl;
     }
 
-
-     /**
-     * \brief Use Gride Stride Loop to cover the range, you need mannally set the grid size and block size.
-     * Gride Stride Loop: if grid_dim * block_dim < count, there will be a loop in every thread, to process multiple indices
-     * 
-     * \code 
-     *  DeviceBuffer<int> buffer(256);
-     *  ParallelFor(2, 64)
-     *      .kernel_name("set_buffer") // optional
-     *      .apply(buffer.size(), 
-     *          [
-     *              buffer = buffer.viewer().name("buffer") // name is optional
-     *          ] __device__(int i) mutable 
-     *          {
-     *              buffer(i) = 1;
-     *          });
-     * \endcode
+    /**
+     * \brief Use Gride Stride Loop to cover the range, you need mannually set the grid size and block size.
      */
     MUDA_HOST ParallelFor(int          gridDim,
                           int          blockDim,
                           size_t       shared_mem_size = 0,
                           cudaStream_t stream          = nullptr) MUDA_NOEXCEPT
-        : LaunchBase(stream),
+        requires(kGridStrideMode)
+        : LaunchBase<ParallelFor<kGridStrideMode>>(stream),
           m_grid_dim(gridDim),
           m_block_dim(blockDim),
           m_shared_mem_size(shared_mem_size)
@@ -202,23 +170,37 @@ class ParallelFor : public LaunchBase<ParallelFor>
     }
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST ParallelFor& apply(int count, F&& f);
+    MUDA_HOST ParallelFor<kGridStrideMode>& apply(int count, F&& f);
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST ParallelFor& apply(int count, F&& f, Tag<UserTag>);
+    MUDA_HOST ParallelFor<kGridStrideMode>& apply(int count, F&& f, Tag<UserTag>);
 
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST MUDA_NODISCARD auto as_node_parms(int count, F&& f) -> S<NodeParms<F>>;
+    MUDA_NODISCARD MUDA_HOST auto as_node_parms(int count, F&& f)
+        -> std::shared_ptr<NodeParms<F>>;
 
     template <typename F, typename UserTag = Default>
-    MUDA_HOST MUDA_NODISCARD auto as_node_parms(int count, F&& f, Tag<UserTag>)
-        -> S<NodeParms<F>>;
+    MUDA_NODISCARD MUDA_HOST auto as_node_parms(int count, F&& f, Tag<UserTag>)
+        -> std::shared_ptr<NodeParms<F>>;
 
-    MUDA_GENERIC MUDA_NODISCARD static int round_up_blocks(int count, int block_dim) MUDA_NOEXCEPT
+    MUDA_NODISCARD MUDA_GENERIC static int round_up_blocks(int count, int block_dim) MUDA_NOEXCEPT
     {
         return (count + block_dim - 1) / block_dim;
     }
+
+  private:
+    template <typename F, typename UserTag>
+    MUDA_HOST std::shared_ptr<NodeParms<F>> make_as_node_parms_dynamic(int count, F&& f);
+
+    template <typename F, typename UserTag>
+    MUDA_HOST std::shared_ptr<NodeParms<F>> make_as_node_parms_grid_stride(int count, F&& f);
+
+    template <typename F, typename UserTag>
+    MUDA_HOST void invoke_parallel_for_dynamic(int count, F&& f);
+
+    template <typename F, typename UserTag>
+    MUDA_HOST void invoke_parallel_for_grid_stride(int count, F&& f);
 
   public:
     template <typename F, typename UserTag>
@@ -233,6 +215,13 @@ class ParallelFor : public LaunchBase<ParallelFor>
 
     MUDA_GENERIC void check_input(int count) const MUDA_NOEXCEPT;
 };
+
+// Deduction guides: (grid, block, ...) selects grid-stride mode; other ctors stay dynamic.
+ParallelFor()-> ParallelFor<false>;
+ParallelFor(size_t, cudaStream_t = nullptr)-> ParallelFor<false>;
+ParallelFor(int, size_t, cudaStream_t = nullptr)-> ParallelFor<false>;
+ParallelFor(int, int, size_t = 0, cudaStream_t = nullptr)-> ParallelFor<true>;
+
 }  // namespace muda
 
 #include "details/parallel_for.inl"

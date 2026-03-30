@@ -8,6 +8,11 @@
                                                                                \
     checkCudaErrors(x);                                                        \
                                                                                \
+    MUDA_ASSERT(temp_storage_bytes < (size_t(1) << 34),                         \
+                "CUB temp_storage_bytes looks overflowed: %s, temp_storage_bytes=%zu", \
+                #x,                                                            \
+                temp_storage_bytes);                                            \
+                                                                               \
     d_temp_storage = (void*)prepare_buffer(temp_storage_bytes);                \
                                                                                \
     checkCudaErrors(x);                                                        \

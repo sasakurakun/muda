@@ -3,12 +3,17 @@
 #include <muda/buffer/buffer_view.h>
 #include <muda/buffer/buffer_2d_view.h>
 #include <muda/buffer/buffer_3d_view.h>
+#include <typeinfo>
 
 namespace muda::details::buffer
 {
 template <typename T>
 MUDA_INLINE MUDA_HOST BufferView<T> reserve_1d(cudaStream_t stream, size_t size)
 {
+    MUDA_ASSERT(size < (size_t(1) << 34),
+                "reserve_1d overflow for type %s: size=%zu",
+                typeid(T).name(),
+                size);
     T* ptr = nullptr;
     Memory(stream).alloc_1d(&ptr, size * sizeof(T));
     return BufferView<T>{ptr, 0, size};

@@ -48,7 +48,7 @@ MUDA_GENERIC auto Buffer2DViewT<IsConst, T>::as_const() const MUDA_NOEXCEPT -> C
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto Buffer2DViewT<IsConst, T>::data(size_t x, size_t y) const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto Buffer2DViewT<IsConst, T>::data(size_t x, size_t y) const MUDA_NOEXCEPT
     -> auto_const_t<T>*
 {
     x += m_offset.offset_in_height();
@@ -60,7 +60,7 @@ MUDA_GENERIC auto Buffer2DViewT<IsConst, T>::data(size_t x, size_t y) const MUDA
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto Buffer2DViewT<IsConst, T>::data(size_t flatten_i) const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto Buffer2DViewT<IsConst, T>::data(size_t flatten_i) const MUDA_NOEXCEPT
     -> auto_const_t<T>*
 {
     auto x = flatten_i / m_extent.width();
@@ -69,7 +69,7 @@ MUDA_GENERIC auto Buffer2DViewT<IsConst, T>::data(size_t flatten_i) const MUDA_N
 }
 
 template <bool IsConst, typename T>
-MUDA_GENERIC auto Buffer2DViewT<IsConst, T>::origin_data() const MUDA_NOEXCEPT
+MUDA_HOST MUDA_DEVICE auto Buffer2DViewT<IsConst, T>::origin_data() const MUDA_NOEXCEPT
     -> auto_const_t<T>*
 
 {

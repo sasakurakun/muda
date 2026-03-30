@@ -6,7 +6,10 @@ namespace muda
 template <typename T>
 DeviceVar<T>::DeviceVar()
 {
-    Memory().alloc(&m_data, sizeof(T)).wait();
+    // Prefer synchronous cudaMalloc (async=false). A following `.wait()` runs
+    // cudaStreamSynchronize(nullptr) / cudaDeviceSynchronize() in muda, which is
+    // redundant after a blocking malloc and has been observed to hang on Iluvatar/Corex.
+    Memory().alloc(&m_data, sizeof(T), false);
 }
 template <typename T>
 DeviceVar<T>::DeviceVar(const T& value)

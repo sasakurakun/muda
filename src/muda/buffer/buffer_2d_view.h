@@ -67,11 +67,11 @@ class Buffer2DViewT : public ViewBase<IsConst>
 
     MUDA_GENERIC ConstView as_const() const MUDA_NOEXCEPT;
 
-    MUDA_GENERIC auto_const_t<T>* data(size_t x, size_t y) const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* data(size_t x, size_t y) const MUDA_NOEXCEPT;
 
-    MUDA_GENERIC auto_const_t<T>* data(size_t flatten_i) const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* data(size_t flatten_i) const MUDA_NOEXCEPT;
 
-    MUDA_GENERIC auto_const_t<T>* origin_data() const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* origin_data() const MUDA_NOEXCEPT;
 
     MUDA_GENERIC ThisView subview(Offset2D offset, Extent2D extent = {}) const MUDA_NOEXCEPT;
 

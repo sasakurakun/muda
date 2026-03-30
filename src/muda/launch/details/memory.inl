@@ -1,4 +1,7 @@
 #pragma once
+#include <cstdio>
+#include <cstdlib>
+#include <execinfo.h>
 #include <muda/compute_graph/compute_graph.h>
 #include "memory.h"
 namespace muda
@@ -8,13 +11,57 @@ MUDA_HOST Memory& Memory::alloc_1d(T** ptr, size_t byte_size, bool async)
 {
     MUDA_ASSERT(ComputeGraphBuilder::is_direct_launching(),
                 "alloc must be called in direct launching mode");
+
+    // If byte_size is obviously overflowed, dump a host backtrace once.
+    // (Helps locate the exact caller that computed a bogus size.)
+    if(byte_size > (size_t(1) << 40))  // > 1 TB is never expected here
+    {
+        void*  frames[64];
+        int    n     = ::backtrace(frames, 64);
+        char** syms  = ::backtrace_symbols(frames, n);
+        std::fprintf(stderr, "[muda] suspicious cudaMalloc byte_size=%zu, dumping backtrace (%d frames)\n",
+                     byte_size,
+                     n);
+        if(syms)
+        {
+            for(int i = 0; i < n; ++i)
+                std::fprintf(stderr, "  %s\n", syms[i]);
+            std::free(syms);
+        }
+        std::fflush(stderr);
+    }
+
 #ifdef MUDA_WITH_ASYNC_MEMORY_ALLOC_FREE
     if(async)
-        checkCudaErrors(cudaMallocAsync(ptr, byte_size, stream()));
+    {
+        auto err = cudaMallocAsync(ptr, byte_size, stream());
+        if(err)
+        {
+            auto f = std::string{"cudaMallocAsync(ptr, byte_size="}
+                     + std::to_string(byte_size) + ", stream)";
+            ::muda::check(err, f.c_str(), __FILE__, __LINE__);
+        }
+    }
     else
-        checkCudaErrors(cudaMalloc(ptr, byte_size));
+    {
+        auto err = cudaMalloc(ptr, byte_size);
+        if(err)
+        {
+            auto f =
+                std::string{"cudaMalloc(ptr, byte_size="} + std::to_string(byte_size) + ")";
+            ::muda::check(err, f.c_str(), __FILE__, __LINE__);
+        }
+    }
 #else
-    checkCudaErrors(cudaMalloc(ptr, byte_size));
+    {
+        auto err = cudaMalloc(ptr, byte_size);
+        if(err)
+        {
+            auto f =
+                std::string{"cudaMalloc(ptr, byte_size="} + std::to_string(byte_size) + ")";
+            ::muda::check(err, f.c_str(), __FILE__, __LINE__);
+        }
+    }
 #endif
     return *this;
 }

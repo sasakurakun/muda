@@ -8,8 +8,16 @@ namespace details
     template <typename F, typename UserTag>
     MUDA_GLOBAL void generic_kernel(LaunchCallable<F> f)
     {
-        static_assert(std::is_invocable_v<F>, "f:void (void)");
+#if defined(UIPC_COREX_CUDA10_COMPAT) && UIPC_COREX_CUDA10_COMPAT
+        // Same toolchain issue as ParallelFor: if constexpr + is_invocable on device
+        // lambdas can miscompile; always invoke the zero-arg callable.
         f.callable();
+#else
+        if constexpr(std::is_invocable_v<F>)
+        {
+            f.callable();
+        }
+#endif
     }
 
     template <typename F, typename UserTag>
@@ -48,17 +56,11 @@ namespace details
             else if constexpr(std::is_invocable_v<F, int>
                               || std::is_invocable_v<F, unsigned int>)
             {
-                static_assert(always_false_v<F>, "You should use `ParallelFor()` instead of `Launch()` for better semantics");
+                return;
             }
             else
             {
-                static_assert(always_false_v<F>,
-                              "invalid callable, it should be:"
-                              "void (uint1) or"
-                              "void (unsigned int) or"
-                              "void (uint2) or"
-                              "void (uint3) or"
-                              "void (dim3)");
+                return;
             }
         }
     }
@@ -92,7 +94,7 @@ MUDA_INLINE MUDA_HOST auto Launch::as_node_parms(F&& f) -> S<NodeParms<F>>
 }
 
 template <typename F, typename UserTag>
-MUDA_HOST MUDA_NODISCARD auto Launch::as_node_parms(F&& f, Tag<UserTag>)
+MUDA_NODISCARD MUDA_HOST auto Launch::as_node_parms(F&& f, Tag<UserTag>)
     -> S<NodeParms<F>>
 {
     return as_node_parms<F, UserTag>(std::forward<F>(f));
@@ -119,7 +121,7 @@ MUDA_INLINE MUDA_HOST auto Launch::as_node_parms(const dim3& active_dim, F&& f)
 }
 
 template <typename F, typename UserTag>
-MUDA_HOST MUDA_NODISCARD auto Launch::as_node_parms(const dim3& active_dim, F&& f, Tag<UserTag>)
+MUDA_NODISCARD MUDA_HOST auto Launch::as_node_parms(const dim3& active_dim, F&& f, Tag<UserTag>)
     -> S<NodeParms<F>>
 {
     return as_node_parms<F, UserTag>(active_dim, std::forward<F>(f));

@@ -18,13 +18,15 @@ MUDA_INLINE MUDA_GENERIC void GraphViewer::launch(cudaStream_t stream) const
                        "Launch Graph on device with invalid stream! "
                        "Only Stream::GraphTailLaunch{} and Stream::GraphFireAndForget{} are allowed");
 #if !MUDA_WITH_DEVICE_STREAM_MODEL
+    constexpr int cuda_major = CUDA_VERSION / 1000;
+    constexpr int cuda_minor = (CUDA_VERSION % 1000) / 10;
     MUDA_ERROR_WITH_LOCATION(
         "GraphViewer[%s:%s]: graph launch on device is not supported in "
         "cuda %d-%d.",
         kernel_name(),
         name(),
-        __CUDACC_VER_MAJOR__,
-        __CUDACC_VER_MINOR__);
+        cuda_major,
+        cuda_minor);
 #endif
 #endif
     auto graph_viewer_error_code = cudaGraphLaunch(m_graph, stream);

@@ -59,11 +59,11 @@ class BufferViewT : public ViewBase<IsConst>
 
     MUDA_GENERIC ConstView as_const() const MUDA_NOEXCEPT;
 
-    MUDA_GENERIC auto_const_t<T>* data() const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* data() const MUDA_NOEXCEPT;
 
-    MUDA_GENERIC auto_const_t<T>* data(size_t i) const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* data(size_t i) const MUDA_NOEXCEPT;
 
-    MUDA_GENERIC auto_const_t<T>* origin_data() const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>* origin_data() const MUDA_NOEXCEPT;
 
     MUDA_GENERIC ThisView subview(size_t offset, size_t size = ~0) const MUDA_NOEXCEPT;
 
@@ -75,7 +75,7 @@ class BufferViewT : public ViewBase<IsConst>
 
     MUDA_GENERIC size_t offset() const MUDA_NOEXCEPT { return m_offset; }
 
-    MUDA_GENERIC auto_const_t<T>& operator[](size_t i) const MUDA_NOEXCEPT;
+    MUDA_HOST MUDA_DEVICE auto_const_t<T>& operator[](size_t i) const MUDA_NOEXCEPT;
 
     MUDA_HOST void copy_from(const BufferViewT<true, T>& other) const
         MUDA_REQUIRES(!IsConst);

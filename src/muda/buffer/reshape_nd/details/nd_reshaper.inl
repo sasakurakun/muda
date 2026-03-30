@@ -1,6 +1,7 @@
 #include <list>
 #include <array>
 #include <bitset>
+#include <typeinfo>
 #include <muda/buffer/device_buffer.h>
 #include <muda/buffer/device_buffer_2d.h>
 #include <muda/buffer/device_buffer_3d.h>
@@ -73,6 +74,11 @@ void NDReshaper::resize(int              grid_dim,
                         FConstruct&&     fct)
 {
     using namespace details::buffer;
+
+    MUDA_ASSERT(new_size < (size_t(1) << 34),
+                "DeviceBuffer<%s> resize overflow: new_size=%zu",
+                typeid(T).name(),
+                new_size);
 
     auto& m_data     = buffer.m_data;
     auto& m_size     = buffer.m_size;
@@ -184,6 +190,11 @@ MUDA_HOST void NDReshaper::reserve(int              grid_dim,
                                    size_t           new_capacity)
 {
     using namespace details::buffer;
+
+    MUDA_ASSERT(new_capacity < (size_t(1) << 34),
+                "DeviceBuffer<%s> reserve overflow: new_capacity=%zu",
+                typeid(T).name(),
+                new_capacity);
 
     auto& m_data     = buffer.m_data;
     auto& m_size     = buffer.m_size;

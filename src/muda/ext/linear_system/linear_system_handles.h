@@ -33,8 +33,21 @@ class LinearSystemHandles
         checkCudaErrors(cusparseSetStream(m_cusparse, m_stream));
         checkCudaErrors(cublasSetStream(m_cublas, m_stream));
         checkCudaErrors(cusolverDnSetStream(m_cusolver_dn, m_stream));
-        checkCudaErrors(cusolverSpCreate(&m_cusolver_sp));
-        checkCudaErrors(cusolverSpSetStream(m_cusolver_sp, m_stream));
+        // Corex environments may ship a cuSolver variant where Sparse APIs are absent.
+        // Treat it as an optional capability: allow the context to initialize and
+        // only enable cuSolverSp when available at runtime.
+        {
+            auto st = cusolverSpCreate(&m_cusolver_sp);
+            if(st == CUSOLVER_STATUS_NOT_SUPPORTED)
+            {
+                m_cusolver_sp = nullptr;
+            }
+            else
+            {
+                checkCudaErrors(st);
+                checkCudaErrors(cusolverSpSetStream(m_cusolver_sp, m_stream));
+            }
+        }
         set_pointer_mode_host();
     }
     ~LinearSystemHandles()
@@ -55,7 +68,8 @@ class LinearSystemHandles
         checkCudaErrors(cusparseSetStream(m_cusparse, m_stream));
         checkCudaErrors(cublasSetStream(m_cublas, m_stream));
         checkCudaErrors(cusolverDnSetStream(m_cusolver_dn, m_stream));
-        checkCudaErrors(cusolverSpSetStream(m_cusolver_sp, m_stream));
+        if(m_cusolver_sp)
+            checkCudaErrors(cusolverSpSetStream(m_cusolver_sp, m_stream));
     }
 
     MUDA_INLINE void set_pointer_mode_device()

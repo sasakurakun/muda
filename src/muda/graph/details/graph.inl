@@ -39,12 +39,16 @@ MUDA_INLINE auto Graph::instantiate() -> S<GraphExec>
 MUDA_INLINE auto Graph::instantiate(Flags<GraphInstantiateFlagBit> flags) -> S<GraphExec>
 {
     auto ret = std::make_shared<GraphExec>();
+#if CUDART_VERSION >= 11000
 #if MUDA_WITH_DEVICE_STREAM_MODEL
     checkCudaErrors(
         cudaGraphInstantiateWithFlags(&ret->m_handle, m_handle, static_cast<int>(flags)));
 #else
     checkCudaErrors(cudaGraphInstantiateWithFlags(
         &ret->m_handle, m_handle, static_cast<int>(flags & GraphInstantiateFlagBit::FreeOnLaunch)));
+#endif
+#else
+    checkCudaErrors(cudaGraphInstantiate(&ret->m_handle, m_handle, nullptr, nullptr, 0));
 #endif
     ret->m_flags = flags;
     return ret;
@@ -101,8 +105,18 @@ MUDA_INLINE auto Graph::add_memcpy_node(void*          dst,
 {
     auto                         ret   = std::make_shared<MemcpyNode>();
     std::vector<cudaGraphNode_t> nodes = map_dependencies(deps);
+#if CUDART_VERSION >= 11000
     checkCudaErrors(cudaGraphAddMemcpyNode1D(
         &ret->m_handle, m_handle, nodes.data(), nodes.size(), dst, src, size_bytes, kind));
+#else
+    cudaMemcpy3DParms parms = {};
+    parms.srcPtr            = make_cudaPitchedPtr(const_cast<void*>(src), size_bytes, size_bytes, 1);
+    parms.dstPtr            = make_cudaPitchedPtr(dst, size_bytes, size_bytes, 1);
+    parms.extent            = make_cudaExtent(size_bytes, 1, 1);
+    parms.kind              = kind;
+    checkCudaErrors(
+        cudaGraphAddMemcpyNode(&ret->m_handle, m_handle, nodes.data(), nodes.size(), &parms));
+#endif
     return ret;
 }
 
@@ -110,8 +124,17 @@ MUDA_INLINE auto Graph::add_memcpy_node(void* dst, const void* src, size_t size_
     -> S<MemcpyNode>
 {
     auto ret = std::make_shared<MemcpyNode>();
+#if CUDART_VERSION >= 11000
     checkCudaErrors(cudaGraphAddMemcpyNode1D(
         &ret->m_handle, m_handle, nullptr, 0, dst, src, size_bytes, kind));
+#else
+    cudaMemcpy3DParms parms = {};
+    parms.srcPtr            = make_cudaPitchedPtr(const_cast<void*>(src), size_bytes, size_bytes, 1);
+    parms.dstPtr            = make_cudaPitchedPtr(dst, size_bytes, size_bytes, 1);
+    parms.extent            = make_cudaExtent(size_bytes, 1, 1);
+    parms.kind              = kind;
+    checkCudaErrors(cudaGraphAddMemcpyNode(&ret->m_handle, m_handle, nullptr, 0, &parms));
+#endif
     return ret;
 }
 
